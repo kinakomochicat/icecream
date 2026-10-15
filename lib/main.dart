@@ -1,30 +1,28 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-void main() => runApp(
-      const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: KakigoriApp(),
-      ),
-    );
+void main() => runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: IcecreamApp()));
 
-class KakigoriApp extends StatefulWidget {
-  const KakigoriApp({super.key});
-
+class IcecreamApp extends StatefulWidget {
+  const IcecreamApp({super.key});
   @override
-  State<KakigoriApp> createState() => _KakigoriAppState();
+  State<IcecreamApp> createState() => _IcecreamAppState();
 }
 
-class _KakigoriAppState extends State<KakigoriApp> {
-  final prices = <int, int>{
-    1: 450,
-    2: 400,
-    3: 300,
-    4: 300,
-    5: 300,
+class _IcecreamAppState extends State<IcecreamApp> {
+  final foods = {
+    '1種類': 450,
+    '2種類': 400,
+    '3種類': 300,
+    '4種類': 300,
+    '5種類': 300,
   };
+  late String food = foods.keys.first;
+  int order = 0;
+  bool spoon = false, napkin = false;
+  String receipt = '';
 
-  final syrupColors = <String, Color>{
+    final syrupColors = <String, Color>{
     'いちご': Colors.pink,
     'レモン': Colors.yellow,
     'メロン': Colors.green,
@@ -32,262 +30,265 @@ class _KakigoriAppState extends State<KakigoriApp> {
     'ぶどう': Colors.purple,
   };
 
-  int flavorCount = 1;
-  final selectedSyrups = <String>[];
-  bool spoon = false;
-  bool napkin = false;
-  int order = 0;
-  String receipt = '';
+  final syrups = <String>[];
+
+  Future<void> diagnoseColor() async {
+    final names = syrupColors.keys.toList();
+
+    final questions = [
+      '今、行きたい場所は？',
+      '今日はどんなふうに過ごしたい？',
+      '今、惹かれる言葉は？',
+    ];
+
+
+    final options = [
+      ['🌷 お花のカフェ', '🎡 遊園地', '🌿 森', '🌊 海', '🌌 星空の丘'],
+      ['🎀 好きなもの探し', '☀️ ワイワイ楽しむ', '🍃 のんびりする',
+      '🧭 新しいことに挑戦', '📖 自分の世界に浸る'],
+      ['💕 ときめき', '✨ ワクワク', '🌱 安らぎ', '🕊️ 自由', '🔮 想像'],
+    ];
+
+    final titles = [
+      'ときめきのピンク',
+      'きらめくイエロー',
+      'やすらぎのグリーン',
+      '自由なブルー',
+      '夢見るパープル',
+    ];
+
+    final messages = [
+      '好きなものや、ときめく出会いを楽しみたいあなたへ！',
+      '今日は思いっきり楽しみたい！そんなあなたへ。',
+      'ひと息ついて、自分のペースで過ごしたいあなたへ。',
+      'いつもと違う景色に出会いたいあなたへ！',
+      '想像を広げて、自分だけの世界を楽しみたいあなたへ。',
+    ];
+
+    final scores = List<int>.filled(names.length, 0);
+    int lastAnswer = 0;
+
+    for (int i = 0; i < questions.length; i++) {
+      final answer = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) => SimpleDialog(
+          title: Text('質問 ${i + 1}/3\n${questions[i]}'),
+          children: [
+            for (int j = 0; j < options[i].length; j++)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialogContext, j),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(options[i][j]),
+                ),
+              ),
+          ],
+        ),
+      );
+
+      if (!mounted || answer == null) return;
+
+      scores[answer]++;
+      lastAnswer = answer;
+    }
+
+    final ranking = List<int>.generate(names.length, (i) => i)
+      ..sort((a, b) {
+        final difference = scores[b].compareTo(scores[a]);
+        if (difference != 0) return difference;
+        if (a == b) return 0;
+        if (a == lastAnswer) return -1;
+        if (b == lastAnswer) return 1;
+        return a.compareTo(b);
+      });
+
+    final winner = ranking.first;
+    final count = int.parse(food.substring(0, 1));
+    final recommended = ranking.take(count).map((i) => names[i]).toList();
+
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('あなたは「${titles[winner]}」！'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.water_drop,
+              color: syrupColors[names[winner]],
+              size: 64,
+            ),
+            Text(messages[winner]),
+            const SizedBox(height: 16),
+            Text('おすすめ：${recommended.join(' × ')}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('閉じる'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('この色のかき氷にする'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || apply != true) return;
+
+    setState(() {
+      syrups
+        ..clear()
+        ..addAll(recommended);
+    });
+  }
+
+  Widget choices(Iterable<String> items, String value,
+      void Function(String) change) => Wrap(spacing: 6, children: [
+        for (final s in items)
+          ChoiceChip(label: Text(s), selected: value == s,
+            onSelected: (_) => setState(() => change(s))),
+      ]);
 
   @override
   Widget build(BuildContext context) {
-    final subtotal = prices[flavorCount]!;
+    final subtotal = foods[food]!;
     final tax = subtotal ~/ 10;
     final total = subtotal + tax;
-    final canOrder = selectedSyrups.length == flavorCount;
-
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('🍧 かき氷 屋台注文アプリ'),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Center(
-                child: CustomPaint(
-                  size: const Size(240, 220),
-                  painter: KakigoriPainter(
-                    colors: [
-                      for (final name in selectedSyrups)
-                        syrupColors[name]!,
-                    ],
-                  ),
+    final photo = SizedBox(
+      width: 190,
+      height: 145,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 140,
+              height: 90,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(90),
+                  bottom: Radius.circular(12),
+                ),
+                color: syrups.length < 2
+                    ? (syrups.isEmpty
+                        ? const Color(0xFFEAF6FF)
+                        : syrupColors[syrups.first]!)
+                    : null,
+                gradient: syrups.length >= 2
+                    ? LinearGradient(
+                        colors: [
+                          for (final s in syrups) syrupColors[s]!,
+                        ],
+                      )
+                    : null,
+              ),
+            ),
+            Container(
+              width: 145,
+              height: 35,
+              decoration: const BoxDecoration(
+                color: Colors.lightBlue,
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(60),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text('シロップの種類数を選ぶ'),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final count in prices.keys)
-                    ChoiceChip(
-                      label: Text('$count種類 ${prices[count]}円'),
-                      selected: flavorCount == count,
-                      onSelected: (_) {
-                        setState(() {
-                          flavorCount = count;
-
-                          if (selectedSyrups.length > count) {
-                            selectedSyrups.removeRange(
-                              count,
-                              selectedSyrups.length,
-                            );
-                          }
-                        });
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'シロップを選ぶ'
-                '（${selectedSyrups.length} / $flavorCount種類）',
-              ),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final name in syrupColors.keys)
-                    FilterChip(
-                      avatar: CircleAvatar(
-                        backgroundColor: syrupColors[name],
-                        radius: 8,
-                      ),
-                      label: Text(name),
-                      selected: selectedSyrups.contains(name),
-                      onSelected: (selected) {
-                        setState(() {
-                          if (!selected) {
-                            selectedSyrups.remove(name);
-                          } else if (selectedSyrups.length < flavorCount) {
-                            selectedSyrups.add(name);
-                          } else {
-                            selectedSyrups.removeLast();
-                            selectedSyrups.add(name);
-                          }
-                        });
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Text('無料サービス'),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('🥄 スプーン'),
-                value: spoon,
-                onChanged: (value) {
-                  setState(() => spoon = value ?? false);
-                },
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text('🧻 紙ナプキン'),
-                value: napkin,
-                onChanged: (value) {
-                  setState(() => napkin = value ?? false);
-                },
-              ),
-              const Divider(),
-              Center(
-                child: Text('税抜 $subtotal 円 / 消費税 $tax 円'),
-              ),
-              Center(
-                child: Text(
-                  '合計 $total 円',
-                  style: const TextStyle(fontSize: 28),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: FilledButton(
-                  onPressed: canOrder
-                      ? () {
-                          setState(() {
-                            order = Random().nextInt(999) + 1;
-                            receipt = 'かき氷：$flavorCount種類\n'
-                                'シロップ：${selectedSyrups.join('・')}\n'
-                                '🥄 スプーン：${spoon ? 'あり' : 'なし'}\n'
-                                '🧻 紙ナプキン：${napkin ? 'あり' : 'なし'}\n'
-                                '税抜：$subtotal 円\n'
-                                '消費税（10%）：$tax 円\n'
-                                '合計：$total 円';
-                          });
-                        }
-                      : null,
-                  child: const Text('注文する'),
-                ),
-              ),
-              if (!canOrder)
-                Center(
-                  child: Text(
-                    'シロップをあと'
-                    '${flavorCount - selectedSyrups.length}種類選んでください',
-                  ),
-                ),
-              if (order != 0)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '注文番号 #$order',
-                          style: const TextStyle(fontSize: 26),
-                        ),
-                        Text(receipt),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
-  }
-}
+    final products = choices(foods.keys.map((s) => '$s  ${foods[s]}円'),
+      '$food  ${foods[food]}円',
+      (s) {
+        food = s.substring(0, s.lastIndexOf('  '));
+        final count = int.parse(food.substring(0, 1));
+        if (syrups.length > count) {
+          syrups.removeRange(count, syrups.length);
+        }
+      });
+    Widget supply(String label, bool value, void Function(bool) change) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Checkbox(value: value,
+          onChanged: (v) => setState(() => change(v ?? false))),
+        Text(label),
+      ]);
+    final supplies = Column(crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        supply('🥄 スプーン（無料）', spoon, (v) => spoon = v),
+        supply('🧻 紙ナプキン（無料）', napkin, (v) => napkin = v),
+      ]);
+    final bill = Column(children: [
+      Text('税抜 $subtotal 円 / 消費税 $tax 円'),
+      Text('合計 $total 円', style: const TextStyle(fontSize: 28)),
+    ]);
+    final submit = Center(child: FilledButton(
+      onPressed: syrups.length != int.parse(food.substring(0, 1))
+          ? null
+          : () => setState(() {
+      order = Random().nextInt(999) + 1;
+      receipt = '$food ${foods[food]}円\n'
+        'シロップ: ${syrups.join('・')}\n'
+        '🥄 スプーン: ${spoon ? 'あり' : 'なし'}\n'
+        '🧻 紙ナプキン: ${napkin ? 'あり' : 'なし'}\n'
+        '税抜: $subtotal 円 / 消費税（10%）: $tax 円\n'
+        '合計: $total 円';
+    }), child: const Text('注文する')));
+    final ticket = order == 0 ? const SizedBox.shrink() : Card(child: Padding(
+      padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('注文番号 #$order', style: const TextStyle(fontSize: 26)),
+          Text(receipt),
+        ],
+      ),
+    ));
 
 
-class KakigoriPainter extends CustomPainter {
-  KakigoriPainter({required this.colors});
-
-  final List<Color> colors;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final ice = Path()
-      ..moveTo(20, 145)
-      ..quadraticBezierTo(25, 105, 50, 90)
-      ..quadraticBezierTo(55, 55, 85, 55)
-      ..quadraticBezierTo(120, 5, 155, 55)
-      ..quadraticBezierTo(190, 55, 195, 90)
-      ..quadraticBezierTo(220, 110, 220, 145)
-      ..close();
-
-    canvas.drawPath(
-      ice,
-      Paint()..color = const Color(0xFFF0F8FF),
+    return Scaffold(
+      appBar: AppBar(centerTitle: true, title: const Text('🍦 Icecream 屋台注文アプリ')),
+      body: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+        Center(child: photo),
+        const SizedBox(height: 12),
+        const Text('シロップの種類数・料金を選ぶ'), products,
+        Text('シロップを選ぶ（${syrups.length}/${food.substring(0, 1)}種類）'),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final s in syrupColors.keys)
+              FilterChip(
+                label: Text(s),
+                avatar: CircleAvatar(
+                  radius: 7,
+                  backgroundColor: syrupColors[s],
+                ),
+                selected: syrups.contains(s),
+                onSelected: (v) => setState(() {
+                  if (!v) {
+                    syrups.remove(s);
+                  } else {
+                    final count = int.parse(food.substring(0, 1));
+                    if (syrups.length >= count) syrups.removeLast();
+                    syrups.add(s);
+                  }
+                }),
+              ),
+          ],
+        ),
+        OutlinedButton.icon(
+          onPressed: diagnoseColor,
+          icon: const Icon(Icons.auto_awesome),
+          label: const Text('今のあなたは何色？ かき氷カラー診断'),
+        ),
+        const SizedBox(height: 12),
+        const Text('無料サービス'), supplies,
+        const Divider(),
+        bill,
+        submit, ticket,
+      ]))),
     );
-
-    if (colors.isNotEmpty) {
-      canvas.save();
-      canvas.clipPath(ice);
-
-      final stripeWidth = 200 / colors.length;
-
-      for (var i = 0; i < colors.length; i++) {
-        final rect = Rect.fromLTWH(
-          20 + stripeWidth * i,
-          20,
-          stripeWidth,
-          125,
-        );
-
-        canvas.drawRect(
-          rect,
-          Paint()
-            ..shader = LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                colors[i],
-                Color.lerp(colors[i], Colors.white, 0.75)!,
-              ],
-            ).createShader(rect),
-        );
-      }
-
-      canvas.restore();
-    }
-
-    canvas.drawPath(
-      ice,
-      Paint()
-        ..color = const Color(0xFFB0BEC5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-
-    final bowl = Path()
-      ..moveTo(15, 145)
-      ..lineTo(225, 145)
-      ..quadraticBezierTo(210, 205, 120, 205)
-      ..quadraticBezierTo(30, 205, 15, 145)
-      ..close();
-
-    canvas.drawPath(
-      bowl,
-      Paint()..color = const Color(0xFF81D4FA),
-    );
-
-    canvas.drawLine(
-      const Offset(15, 145),
-      const Offset(225, 145),
-      Paint()
-        ..color = Colors.blue
-        ..strokeWidth = 4,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant KakigoriPainter oldDelegate) {
-    return true;
   }
 }
